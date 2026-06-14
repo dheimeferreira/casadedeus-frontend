@@ -4,10 +4,8 @@ import {
   Droplet, Heart, Menu, X, CheckCircle2, Phone, Loader2, Gift, Send
 } from 'lucide-react';
 
-// Endereço dinâmico: Se estiver na Vercel usa o Render, se não achar, usa o localhost.
-const API_URL = import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api/membros`
-    : 'http://localhost:8080/api/membros';
+// Endereço dinâmico da API com backup direto para o Render
+const API_URL = (import.meta.env.VITE_API_URL || 'https://casadedeus-api.onrender.com') + '/api/membros';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -21,24 +19,38 @@ export default function App() {
   }, [activeTab]);
 
   const fetchMembros = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(API_URL);
-      if (!response.ok) throw new Error('Falha na resposta do servidor.');
-      const data = await response.json();
-      setMembros(data);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      setError('Aviso: Não foi possível ligar à API (Spring Boot/Neon). Mostrando modo visualização.');
-      // Dados de exemplo caso o Java esteja desligado enquanto testamos o visual
-      setMembros([
-        { id: 1, nome: 'João Silva (Exemplo)', dataNascimento: '1990-06-15', telefone: '69999999999', ministerio: 'Louvor', batizado: true, gc: true },
-        { id: 2, nome: 'Maria Oliveira (Exemplo)', dataNascimento: '1985-11-02', telefone: '69888888888', ministerio: 'Recepção', batizado: false, gc: false }
-      ]);
-    } finally {
-      setLoading(false);
+    const maxTentativas = 12; // Tenta por até 1 minuto (12 vezes x 5 segundos)
+    let tentativa = 0;
+
+    while (tentativa < maxTentativas) {
+      try {
+        setLoading(true);
+
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error('Servidor respondendo com erro');
+
+        const data = await response.json();
+        setMembros(data);
+        setError(null); // Limpa qualquer mensagem se conectar com sucesso
+        setLoading(false);
+        return; // Sucesso absoluto! Sai da função
+
+      } catch (err) {
+        tentativa++;
+        console.log(`Tentativa ${tentativa}: O servidor do Render está acordando...`);
+
+        // Exibe uma mensagem elegante de carregamento na tela para o usuário
+        setError(`Conectando ao banco de dados... O servidor gratuito está iniciando para o primeiro acesso. Por favor, aguarde alguns instantes (${tentativa * 5}s)...`);
+
+        // Espera 5 segundos antes de tentar a próxima conexão automática
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
     }
+
+    // Se após 1 minuto inteiro o servidor não responder, avisa o erro real
+    setError('Aviso: Não foi possível conectar ao servidor (Render/Neon). Verifique se a API está online ou tente atualizar a página.');
+    setMembros([]); // Lista 100% limpa, sem nenhum dado fictício!
+    setLoading(false);
   };
 
   const handleAddMembro = async (novoMembro) => {
@@ -56,9 +68,7 @@ export default function App() {
       setActiveTab('membros');
     } catch (err) {
       console.error(err);
-      alert('Aviso: O Java está offline. O membro foi adicionado apenas na tela para teste.');
-      setMembros([...membros, { ...novoMembro, id: Date.now() }]);
-      setActiveTab('membros');
+      alert('Erro: Não foi possível salvar. O servidor da API parece estar offline.');
     } finally {
       setLoading(false);
     }
@@ -112,7 +122,12 @@ export default function App() {
                   <Loader2 size={14} className="animate-spin" /> Sincronizando Banco...
                 </div>
             )}
-            {error && <div className="bg-red-500/10 text-red-500 p-4 rounded-lg mb-6 border border-red-500/20 text-sm font-medium">{error}</div>}
+            {error && (
+                <div className={`p-4 rounded-lg mb-6 border text-sm font-medium flex items-center gap-3 ${error.includes('Conectando') ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                  {error.includes('Conectando') && <Loader2 size={16} className="animate-spin text-amber-500" />}
+                  {error}
+                </div>
+            )}
 
             {activeTab === 'dashboard' && <DashboardView membros={membros} />}
             {activeTab === 'membros' && <MembrosLista membros={membros} />}
@@ -258,26 +273,32 @@ function MembrosLista({ membros }) {
               </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
-              {membrosFiltrados.map((membro) => (
-                  <tr key={membro.id} className="hover:bg-neutral-800/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-white">{membro.nome}</div>
-                      <div className="text-xs text-neutral-500">{membro.dataNascimento ? new Date(membro.dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center gap-2">
-                        {membro.batizado && <span className="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-md text-[10px] font-bold uppercase">Batizado</span>}
-                        {membro.gc && <span className="px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[10px] font-bold uppercase">Em GC</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-neutral-300">{membro.ministerio || '-'}</td>
-                    <td className="px-6 py-4">
-                      <a href={`https://wa.me/55${membro.telefone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm font-medium transition-colors">
-                        <Phone size={14} /> Chamar no Whats
-                      </a>
-                    </td>
+              {membrosFiltrados.length > 0 ? (
+                  membrosFiltrados.map((membro) => (
+                      <tr key={membro.id} className="hover:bg-neutral-800/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-white">{membro.nome}</div>
+                          <div className="text-xs text-neutral-500">{membro.dataNascimento ? new Date(membro.dataNascimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            {membro.batizado && <span className="px-2 py-1 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-md text-[10px] font-bold uppercase">Batizado</span>}
+                            {membro.gc && <span className="px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[10px] font-bold uppercase">Em GC</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-neutral-300">{membro.ministerio || '-'}</td>
+                        <td className="px-6 py-4">
+                          <a href={`https://wa.me/55${membro.telefone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm font-medium transition-colors">
+                            <Phone size={14} /> Chamar no Whats
+                          </a>
+                        </td>
+                      </tr>
+                  ))
+              ) : (
+                  <tr>
+                    <td colSpan="4" className="text-center py-8 text-neutral-500">Nenhum membro registrado no banco de dados.</td>
                   </tr>
-              ))}
+              )}
               </tbody>
             </table>
           </div>
