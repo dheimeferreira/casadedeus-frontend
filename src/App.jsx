@@ -4,30 +4,26 @@ import {
     Droplet, Heart, Menu, X, CheckCircle2, Phone, Loader2, Gift, Send, Trash2
 } from 'lucide-react';
 
-// Endereço oficial e cravado da API
 const API_URL = 'https://casadedeus-api.onrender.com/api/membros';
 
 export default function App() {
+    // Lê o link IMEDIATAMENTE antes de qualquer coisa
+    const linkEspecial = new URLSearchParams(window.location.search).get('cadastro') === 'publico';
+
+    const [isPublicMode] = useState(linkEspecial);
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [membros, setMembros] = useState([]);
-    const [loading, setLoading] = useState(false); // Inicia falso para não mostrar carregamento na tela pública logo de cara
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    // NOVOS ESTADOS PARA A TELA PÚBLICA
-    const [isPublicMode, setIsPublicMode] = useState(false);
     const [cadastroEnviado, setCadastroEnviado] = useState(false);
 
     useEffect(() => {
-        // Verifica se o link tem "?cadastro=publico"
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('cadastro') === 'publico') {
-            setIsPublicMode(true);
-        } else {
-            // Só busca a lista de membros se for o sistema restrito
+        // Só tenta conectar ao banco e puxar a lista se NÃO for o link público
+        if (!isPublicMode) {
             fetchMembros();
         }
-    }, [activeTab]);
+    }, [activeTab, isPublicMode]);
 
     const fetchMembros = async () => {
         const maxTentativas = 12;
@@ -68,7 +64,6 @@ export default function App() {
 
             if (!response.ok) throw new Error('Erro ao guardar membro');
 
-            // Se for a tela do visitante, mostra mensagem de sucesso em vez de redirecionar
             if (isPublicMode) {
                 setCadastroEnviado(true);
             } else {
@@ -85,7 +80,6 @@ export default function App() {
 
     const handleDeleteMembro = async (id, nome) => {
         const confirmacao = window.confirm(`ATENÇÃO: Tem certeza que deseja excluir o membro ${nome}? Esta ação não pode ser desfeita.`);
-
         if (confirmacao) {
             try {
                 setLoading(true);
@@ -145,7 +139,6 @@ export default function App() {
     // ==========================================
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex overflow-hidden">
-            {/* SIDEBAR OCULTA NO MODO PÚBLICO */}
             <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
                 <div className="flex flex-col h-full">
                     <div className="p-6 flex items-center justify-between border-b border-neutral-800">
@@ -173,7 +166,6 @@ export default function App() {
 
             {isMobileMenuOpen && <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
 
-            {/* CONTEÚDO PRINCIPAL DO SISTEMA */}
             <main className="flex-1 flex flex-col h-screen overflow-hidden">
                 <header className="md:hidden flex items-center justify-between p-4 bg-neutral-900 border-b border-neutral-800">
                     <div className="w-6 h-6 border-2 border-white flex items-center justify-center rounded-sm">
@@ -389,7 +381,6 @@ function FormularioMembro({ onSave, isPublic }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave(formData);
-        // Não limpa o form na tela pública para evitar piscar antes de mostrar a mensagem de sucesso
         if(!isPublic) {
             setFormData({nome: '', dataNascimento: '', estadoCivil: '', telefone: '', email: '', endereco: '', entregouVida: false, batizado: false, desejaBatizar: false, gc: false, ministerio: ''});
         }
