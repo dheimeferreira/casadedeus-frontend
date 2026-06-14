@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 
 // Endereço dinâmico da API com backup direto para o Render
-const API_URL = (import.meta.env.VITE_API_URL || 'https://casadedeus-api.onrender.com') + '/api/membros';
+const API_URL = 'https://casadedeus-api.onrender.com/api/membros';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
