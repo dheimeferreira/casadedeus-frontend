@@ -4,8 +4,10 @@ import {
   Droplet, Heart, Menu, X, CheckCircle2, Phone, Loader2, Gift, Send
 } from 'lucide-react';
 
-// Endereço do seu Java Spring Boot que está conectado ao Neon
-const API_URL = 'http://localhost:8080/api/membros';
+// Endereço dinâmico: Se estiver na Vercel usa o Render, se não achar, usa o localhost.
+const API_URL = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api/membros`
+    : 'http://localhost:8080/api/membros';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
