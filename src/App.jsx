@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LayoutDashboard, Users, UserPlus, Search, Calendar,
-  Droplet, Heart, Menu, X, CheckCircle2, Phone, Loader2, Gift, Send
+  LayoutDashboard, Users, UserPlus, Search,
+  Droplet, Heart, Menu, X, CheckCircle2, Phone, Loader2, Gift, Send, Trash2
 } from 'lucide-react';
 
-// Endereço dinâmico da API com backup direto para o Render
+// Endereço oficial e cravado da API para evitar erros de CORS
 const API_URL = 'https://casadedeus-api.onrender.com/api/membros';
 
 export default function App() {
@@ -19,37 +19,30 @@ export default function App() {
   }, [activeTab]);
 
   const fetchMembros = async () => {
-    const maxTentativas = 12; // Tenta por até 1 minuto (12 vezes x 5 segundos)
+    const maxTentativas = 12;
     let tentativa = 0;
 
     while (tentativa < maxTentativas) {
       try {
         setLoading(true);
-
         const response = await fetch(API_URL);
         if (!response.ok) throw new Error('Servidor respondendo com erro');
 
         const data = await response.json();
         setMembros(data);
-        setError(null); // Limpa qualquer mensagem se conectar com sucesso
+        setError(null);
         setLoading(false);
-        return; // Sucesso absoluto! Sai da função
+        return;
 
       } catch (err) {
         tentativa++;
-        console.log(`Tentativa ${tentativa}: O servidor do Render está acordando...`);
-
-        // Exibe uma mensagem elegante de carregamento na tela para o usuário
-        setError(`Conectando ao banco de dados... O servidor gratuito está iniciando para o primeiro acesso. Por favor, aguarde alguns instantes (${tentativa * 5}s)...`);
-
-        // Espera 5 segundos antes de tentar a próxima conexão automática
+        setError(`Conectando ao banco de dados... Por favor, aguarde alguns instantes (${tentativa * 5}s)...`);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
-    // Se após 1 minuto inteiro o servidor não responder, avisa o erro real
-    setError('Aviso: Não foi possível conectar ao servidor (Render/Neon). Verifique se a API está online ou tente atualizar a página.');
-    setMembros([]); // Lista 100% limpa, sem nenhum dado fictício!
+    setError('Aviso: Não foi possível conectar ao servidor (Render/Neon). Verifique se a API está online.');
+    setMembros([]);
     setLoading(false);
   };
 
@@ -74,9 +67,33 @@ export default function App() {
     }
   };
 
+  // NOVA FUNÇÃO: Excluir Membro
+  const handleDeleteMembro = async (id, nome) => {
+    const confirmacao = window.confirm(`ATENÇÃO: Tem certeza que deseja excluir o membro ${nome}? Esta ação não pode ser desfeita.`);
+
+    if (confirmacao) {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) throw new Error('Erro ao excluir no servidor');
+
+        // Remove o membro da tela imediatamente após excluir do banco
+        setMembros(membros.filter(membro => membro.id !== id));
+        alert('Membro excluído com sucesso!');
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao excluir o membro. Verifique se o backend tem a rota DELETE configurada.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
       <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans flex overflow-hidden">
-
         {/* SIDEBAR */}
         <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
           <div className="flex flex-col h-full">
@@ -130,7 +147,7 @@ export default function App() {
             )}
 
             {activeTab === 'dashboard' && <DashboardView membros={membros} />}
-            {activeTab === 'membros' && <MembrosLista membros={membros} />}
+            {activeTab === 'membros' && <MembrosLista membros={membros} onDelete={handleDeleteMembro} />}
             {activeTab === 'novo_membro' && <FormularioMembro onSave={handleAddMembro} />}
           </div>
         </main>
@@ -145,7 +162,6 @@ export default function App() {
 function DashboardView({ membros }) {
   const totalMembros = membros.length;
   const batizados = membros.filter(m => m.batizado).length;
-
   const dataHoje = new Date();
   const mesAtual = dataHoje.getMonth() + 1;
   const diaAtual = dataHoje.getDate();
@@ -177,19 +193,16 @@ function DashboardView({ membros }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LISTA DE ANIVERSARIANTES */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col h-96">
             <div className="flex items-center gap-2 mb-4 pb-4 border-b border-neutral-800">
               <Gift className="text-emerald-500" size={20} />
               <h3 className="text-lg font-semibold text-white">Aniversariantes do Mês</h3>
             </div>
-
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {listaAniversariantes.length > 0 ? (
                   listaAniversariantes.map((m) => {
                     const diaAniversario = parseInt(m.dataNascimento.split('-')[2]);
                     const ehHoje = diaAniversario === diaAtual;
-
                     return (
                         <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl border ${ehHoje ? 'bg-emerald-950/30 border-emerald-900/50' : 'bg-neutral-950/50 border-neutral-800/50'}`}>
                           <div className="flex items-center gap-3">
@@ -204,9 +217,7 @@ function DashboardView({ membros }) {
                             </div>
                           </div>
                           {m.telefone && (
-                              <button onClick={() => enviarParabens(m.telefone, m.nome)} className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors">
-                                <Send size={18} />
-                              </button>
+                              <button onClick={() => enviarParabens(m.telefone, m.nome)} className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"><Send size={18} /></button>
                           )}
                         </div>
                     );
@@ -220,16 +231,13 @@ function DashboardView({ membros }) {
             </div>
           </div>
 
-          {/* ÚLTIMOS CADASTRADOS */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 h-96 flex flex-col">
             <h3 className="text-lg font-semibold text-white mb-4 pb-4 border-b border-neutral-800">Últimos Registos</h3>
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {membros.slice(-5).reverse().map((m, i) => (
                   <div key={m.id || i} className="flex items-center justify-between p-3 rounded-lg bg-neutral-950/50 border border-neutral-800/50">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-amber-500 font-bold uppercase">
-                        {m.nome ? m.nome.charAt(0) : '?'}
-                      </div>
+                      <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-amber-500 font-bold uppercase">{m.nome ? m.nome.charAt(0) : '?'}</div>
                       <div>
                         <p className="text-sm font-medium text-white">{m.nome}</p>
                         <p className="text-xs text-neutral-500">{m.ministerio || 'Sem ministério'}</p>
@@ -244,7 +252,7 @@ function DashboardView({ membros }) {
   );
 }
 
-function MembrosLista({ membros }) {
+function MembrosLista({ membros, onDelete }) {
   const [busca, setBusca] = useState('');
   const membrosFiltrados = membros.filter(m => (m.nome && m.nome.toLowerCase().includes(busca.toLowerCase())) || (m.telefone && m.telefone.includes(busca)));
 
@@ -268,8 +276,8 @@ function MembrosLista({ membros }) {
               <tr>
                 <th className="px-6 py-4">Nome / Data Nasc.</th>
                 <th className="px-6 py-4 text-center">Status Espiritual</th>
-                <th className="px-6 py-4">Ministério</th>
-                <th className="px-6 py-4">WhatsApp</th>
+                <th className="px-6 py-4">Ministério / Whats</th>
+                <th className="px-6 py-4 text-right">Ações</th>
               </tr>
               </thead>
               <tbody className="divide-y divide-neutral-800">
@@ -286,11 +294,20 @@ function MembrosLista({ membros }) {
                             {membro.gc && <span className="px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md text-[10px] font-bold uppercase">Em GC</span>}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-neutral-300">{membro.ministerio || '-'}</td>
                         <td className="px-6 py-4">
-                          <a href={`https://wa.me/55${membro.telefone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm font-medium transition-colors">
-                            <Phone size={14} /> Chamar no Whats
+                          <span className="text-neutral-300 block mb-1">{membro.ministerio || '-'}</span>
+                          <a href={`https://wa.me/55${membro.telefone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-amber-500 hover:text-amber-400 text-xs font-medium transition-colors">
+                            <Phone size={12} /> Chamar
                           </a>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                              onClick={() => onDelete(membro.id, membro.nome)}
+                              className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent hover:border-red-500/20"
+                              title="Excluir Membro"
+                          >
+                            <Trash2 size={18} />
+                          </button>
                         </td>
                       </tr>
                   ))
